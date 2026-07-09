@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Balança</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: 600; }
+    .tab-inactive { border-bottom: 3px solid transparent; color: #6b7280; }
+    .tab-inactive:hover { color: #374151; }
+    input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white shadow-sm sticky top-0 z-10">
+    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+      <span class="text-2xl">⚖️</span>
+      <h1 class="text-xl font-bold text-gray-800">Balança</h1>
+    </div>
+    <!-- Tabs -->
+    <div class="max-w-2xl mx-auto px-4 flex gap-6 border-t border-gray-100">
+      <button onclick="showTab('registar')" id="tab-registar"
+        class="tab-active py-2 text-sm transition-colors">📝 Registar</button>
+      <button onclick="showTab('graficos')" id="tab-graficos"
+        class="tab-inactive py-2 text-sm transition-colors">📊 Gráficos</button>
+      <button onclick="showTab('pesquisa')" id="tab-pesquisa"
+        class="tab-inactive py-2 text-sm transition-colors">🔍 Pesquisa</button>
+      <button onclick="showTab('dados')" id="tab-dados"
+        class="tab-inactive py-2 text-sm transition-colors">⚙️ Dados</button>
+    </div>
+  </header>
+
+  <main class="max-w-2xl mx-auto px-4 py-6">
+
+    <!-- ═══ TAB: REGISTAR ═══ -->
+    <section id="sec-registar">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">Registar Peso</h2>
+
+      <!-- Formulário -->
+      <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+        <div class="grid grid-cols-2 gap-4 mb-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Data</label>
+            <input type="date" id="form-data"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-600 mb-1">Peso (kg)</label>
+            <input type="number" id="form-peso" step="0.1" min="20" max="300"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="ex: 75.4" />
+          </div>
+        </div>
+        <div class="flex gap-3">
+          <button onclick="guardarRegisto()"
+            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+            💾 Guardar
+          </button>
+          <button onclick="resetForm()"
+            class="px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-lg text-sm transition-colors">
+            ✖ Limpar
+          </button>
+        </div>
+        <p id="form-msg" class="mt-3 text-sm text-center hidden"></p>
+      </div>
+
+      <!-- Lista de registos -->
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Registos</h3>
+      <div id="lista-registos" class="space-y-2">
+        <p class="text-sm text-gray-400 text-center py-6">A carregar…</p>
+      </div>
+    </section>
+
+    <!-- ═══ TAB: GRÁFICOS ═══ -->
+    <section id="sec-graficos" class="hidden">
+
+      <!-- 5.1 Gráfico Linear -->
+      <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+        <h2 class="text-lg font-semibold text-gray-700 mb-3">📈 Evolução do Peso</h2>
+        <div class="flex flex-wrap gap-2 mb-4">
+          <button onclick="setTimeframe(7)"   id="tf-7"   class="tf-btn tf-active">7d</button>
+          <button onclick="setTimeframe(30)"  id="tf-30"  class="tf-btn tf-inactive">1M</button>
+          <button onclick="setTimeframe(90)"  id="tf-90"  class="tf-btn tf-inactive">3M</button>
+          <button onclick="setTimeframe(180)" id="tf-180" class="tf-btn tf-inactive">6M</button>
+          <button onclick="setTimeframe(365)" id="tf-365" class="tf-btn tf-inactive">1A</button>
+          <button onclick="setTimeframe(1095)" id="tf-1095" class="tf-btn tf-inactive">3A</button>
+          <button onclick="setTimeframe(1825)" id="tf-1825" class="tf-btn tf-inactive">5A</button>
+          <button onclick="setTimeframe(0)"   id="tf-0"   class="tf-btn tf-inactive">Tudo</button>
+        </div>
+        <canvas id="chart-linear" height="220"></canvas>
+      </div>
+
+      <!-- 5.2 Rolling 12M -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h2 class="text-lg font-semibold text-gray-700 mb-3">📉 Média Móvel 12 Meses</h2>
+        <div class="flex gap-3 mb-4">
+          <span class="text-sm text-gray-500 self-center">Janela rolling:</span>
+          <button onclick="setRolling(2)" id="rol-2" class="tf-btn tf-active">2 anos</button>
+          <button onclick="setRolling(3)" id="rol-3" class="tf-btn tf-inactive">3 anos</button>
+        </div>
+        <canvas id="chart-rolling" height="220"></canvas>
+      </div>
+    </section>
+
+    <!-- ═══ TAB: PESQUISA ═══ -->
+    <section id="sec-pesquisa" class="hidden">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">🔍 Pesquisa Histórica</h2>
+      <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
+        <label class="block text-sm font-medium text-gray-600 mb-1">Seleciona uma data</label>
+        <div class="flex gap-3">
+          <input type="date" id="pesq-data"
+            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+          <button onclick="pesquisar()"
+            class="bg-blue-500 hover:bg-blue-600 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+            Pesquisar
+          </button>
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Mostra as últimas 10 datas em que o peso foi igual ou inferior ao da data selecionada.</p>
+      </div>
+      <div id="pesq-resultado"></div>
+    </section>
+
+    <!-- ═══ TAB: DADOS ═══ -->
+    <section id="sec-dados" class="hidden">
+      <h2 class="text-lg font-semibold text-gray-700 mb-4">⚙️ Gestão de Dados</h2>
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="text-sm font-semibold text-gray-600 mb-2">Importar Excel</h3>
+        <p class="text-xs text-gray-400 mb-3">
+          Ficheiro <code>.xlsx</code> com duas colunas: <strong>data</strong> (coluna A) e <strong>peso</strong> (coluna B).
+          A primeira linha deve ser o cabeçalho.
+        </p>
+        <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
+          <span class="text-2xl mb-1">📂</span>
+          <span class="text-sm text-gray-500">Clica para escolher o ficheiro</span>
+          <input type="file" id="import-file" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)" />
+        </label>
+        <p id="import-msg" class="mt-3 text-sm text-center hidden"></p>
+      </div>
+    </section>
+
+  </main>
+
+  <style>
+    .tf-btn {
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+      border: 1px solid;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+    .tf-active  { background:#3b82f6; color:white; border-color:#3b82f6; }
+    .tf-inactive{ background:white;   color:#6b7280; border-color:#d1d5db; }
+    .tf-inactive:hover { background:#f3f4f6; }
+  </style>
+
+  <script>
+    // ── State ──────────────────────────────────────────────────────────────────
+    let allRegistos = [];
+    let chartLinear = null;
+    let chartRolling = null;
+    let currentTimeframe = 7;
+    let rollingYears = 2;
+    let editingId = null;
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    const today = () => new Date().toISOString().slice(0, 10);
+
+    function addDays(dateStr, days) {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + days);
+      return d.toISOString().slice(0, 10);
+    }
+
+    function formatDate(dateStr) {
+      const [y, m, d] = dateStr.split("-");
+      return `${d}/${m}/${y}`;
+    }
+
+    function showMsg(elId, text, ok = true) {
+      const el = document.getElementById(elId);
+      el.textContent = text;
+      el.className = `mt-3 text-sm text-center ${ok ? "text-green-600" : "text-red-500"}`;
+      el.classList.remove("hidden");
+      setTimeout(() => el.classList.add("hidden"), 3500);
+    }
+
+    // ── Tabs ──────────────────────────────────────────────────────────────────
+    function showTab(name) {
+      ["registar","graficos","pesquisa","dados"].forEach(t => {
+        document.getElementById("sec-" + t).classList.toggle("hidden", t !== name);
+        document.getElementById("tab-" + t).className =
+          `${t === name ? "tab-active" : "tab-inactive"} py-2 text-sm transition-colors`;
+      });
+      if (name === "graficos") renderCharts();
+    }
+
+    // ── Carregar dados ────────────────────────────────────────────────────────
+    async function loadRegistos() {
+      const res = await fetch("/api/registos");
+      allRegistos = await res.json();
+      renderLista();
+    }
+
+    // ── Lista de registos ─────────────────────────────────────────────────────
+    function renderLista() {
+      const el = document.getElementById("lista-registos");
+      if (!allRegistos.length) {
+        el.innerHTML = `<p class="text-sm text-gray-400 text-center py-6">Sem registos ainda.</p>`;
+        return;
+      }
+      const sorted = [...allRegistos].sort((a, b) => b.data.localeCompare(a.data));
+      el.innerHTML = sorted.map(r => `
+        <div class="bg-white rounded-xl shadow-sm px-4 py-3 flex items-center justify-between">
+          <div>
+            <span class="text-sm font-medium text-gray-700">${formatDate(r.data)}</span>
+            <span class="ml-3 text-blue-600 font-semibold">${r.peso.toFixed(1)} kg</span>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="editRegisto(${r.id})"
+              class="text-xs text-gray-400 hover:text-blue-500 transition-colors px-2 py-1 rounded hover:bg-blue-50">✏️ Editar</button>
+            <button onclick="deleteRegisto(${r.id})"
+              class="text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-red-50">🗑️</button>
+          </div>
+        </div>
+      `).join("");
+    }
+
+    // ── Formulário ────────────────────────────────────────────────────────────
+    function resetForm() {
+      editingId = null;
+      document.getElementById("form-data").value = today();
+      const ultimo = allRegistos.length
+        ? [...allRegistos].sort((a,b) => b.data.localeCompare(a.data))[0].peso
+        : "";
+      document.getElementById("form-peso").value = ultimo !== "" ? ultimo.toFixed(1) : "";
+      document.getElementById("form-msg").classList.add("hidden");
+    }
+
+    function editRegisto(id) {
+      const r = allRegistos.find(x => x.id === id);
+      if (!r) return;
+      editingId = id;
+      document.getElementById("form-data").value = r.data;
+      document.getElementById("form-peso").value = r.peso.toFixed(1);
+      showTab("registar");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
+    async function guardarRegisto() {
+      const data = document.getElementById("form-data").value;
+      const peso = parseFloat(document.getElementById("form-peso").value);
+      if (!data || isNaN(peso)) {
+        showMsg("form-msg", "⚠️ Preenche a data e o peso.", false);
+        return;
+      }
+      let res;
+      if (editingId) {
+        res = await fetch(`/api/registos/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data, peso }),
+        });
+      } else {
+        res = await fetch("/api/registos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ data, peso }),
+        });
+      }
+      const body = await res.json();
+      if (!res.ok) {
+        showMsg("form-msg", "❌ " + body.erro, false);
+        return;
+      }
+      showMsg("form-msg", editingId ? "✔ Registo atualizado!" : "✔ Registo guardado!");
+      editingId = null;
+      await loadRegistos();
+      resetForm();
+    }
+
+    async function deleteRegisto(id) {
+      if (!confirm("Tens a certeza que queres eliminar este registo?")) return;
+      await fetch(`/api/registos/${id}`, { method: "DELETE" });
+      await loadRegistos();
+    }
+
+    // ── Gráficos ──────────────────────────────────────────────────────────────
+    function setTimeframe(days) {
+      currentTimeframe = days;
+      document.querySelectorAll("[id^='tf-']").forEach(b => {
+        b.className = `tf-btn ${b.id === "tf-" + days ? "tf-active" : "tf-inactive"}`;
+      });
+      renderLinear();
+    }
+
+    function setRolling(years) {
+      rollingYears = years;
+      document.getElementById("rol-2").className = `tf-btn ${years === 2 ? "tf-active" : "tf-inactive"}`;
+      document.getElementById("rol-3").className = `tf-btn ${years === 3 ? "tf-active" : "tf-inactive"}`;
+      renderRolling();
+    }
+
+    function renderCharts() {
+      renderLinear();
+      renderRolling();
+    }
+
+    function filteredData(days) {
+      const sorted = [...allRegistos].sort((a, b) => a.data.localeCompare(b.data));
+      if (!days) return sorted;
+      const cutoff = new Date();
+      cutoff.setDate(cutoff.getDate() - days);
+      return sorted.filter(r => new Date(r.data) >= cutoff);
+    }
+
+    function renderLinear() {
+      const data = filteredData(currentTimeframe);
+      const labels = data.map(r => r.data);
+      const values = data.map(r => r.peso);
+
+      if (chartLinear) chartLinear.destroy();
+      const ctx = document.getElementById("chart-linear").getContext("2d");
+      chartLinear = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "Peso (kg)",
+            data: values,
+            borderColor: "#3b82f6",
+            backgroundColor: "rgba(59,130,246,0.08)",
+            borderWidth: 2,
+            pointRadius: data.length > 60 ? 0 : 3,
+            pointHoverRadius: 5,
+            tension: 0.3,
+            fill: true,
+          }]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                title: items => formatDate(items[0].label),
+                label: item => ` ${item.parsed.y.toFixed(1)} kg`,
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: { unit: currentTimeframe <= 30 ? "day" : currentTimeframe <= 365 ? "month" : "year",
+                      tooltipFormat: "yyyy-MM-dd" },
+              grid: { display: false },
+              ticks: { maxTicksLimit: 8 }
+            },
+            y: {
+              grid: { color: "#f3f4f6" },
+              ticks: { callback: v => v.toFixed(1) + " kg" }
+            }
+          }
+        }
+      });
+    }
+
+    function calcRolling12M(sorted, windowYears) {
+      // Para cada ponto, calcula a média dos últimos 12 meses
+      // Filtrar só os pontos dentro da janela de windowYears a partir do início
+      const result = [];
+      for (let i = 0; i < sorted.length; i++) {
+        const current = new Date(sorted[i].data);
+        const start = new Date(current);
+        start.setFullYear(start.getFullYear() - 1);
+        const window = sorted.filter(r => {
+          const d = new Date(r.data);
+          return d >= start && d <= current;
+        });
+        if (window.length > 0) {
+          const avg = window.reduce((s, r) => s + r.peso, 0) / window.length;
+          result.push({ data: sorted[i].data, media: avg });
+        }
+      }
+      // Filtrar para mostrar só os últimos windowYears
+      if (result.length === 0) return result;
+      const lastDate = new Date(result[result.length - 1].data);
+      const cutoff = new Date(lastDate);
+      cutoff.setFullYear(cutoff.getFullYear() - windowYears);
+      return result.filter(r => new Date(r.data) >= cutoff);
+    }
+
+    function renderRolling() {
+      const sorted = [...allRegistos].sort((a, b) => a.data.localeCompare(b.data));
+      const rolling = calcRolling12M(sorted, rollingYears);
+
+      const labels = rolling.map(r => r.data);
+      const values = rolling.map(r => r.media);
+      const rawValues = rolling.map(r => {
+        const match = sorted.find(s => s.data === r.data);
+        return match ? match.peso : null;
+      });
+
+      if (chartRolling) chartRolling.destroy();
+      const ctx = document.getElementById("chart-rolling").getContext("2d");
+      chartRolling = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Média Móvel 12M",
+              data: values,
+              borderColor: "#f59e0b",
+              backgroundColor: "rgba(245,158,11,0.08)",
+              borderWidth: 2.5,
+              pointRadius: 0,
+              tension: 0.4,
+              fill: true,
+            },
+            {
+              label: "Peso real",
+              data: rawValues,
+              borderColor: "#cbd5e1",
+              borderWidth: 1,
+              pointRadius: 0,
+              tension: 0.2,
+              borderDash: [4, 3],
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            tooltip: {
+              callbacks: {
+                title: items => formatDate(items[0].label),
+                label: item => ` ${item.dataset.label}: ${item.parsed.y.toFixed(1)} kg`,
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: "time",
+              time: { unit: "month", tooltipFormat: "yyyy-MM-dd" },
+              grid: { display: false },
+              ticks: { maxTicksLimit: 10 }
+            },
+            y: {
+              grid: { color: "#f3f4f6" },
+              ticks: { callback: v => v.toFixed(1) + " kg" }
+            }
+          }
+        }
+      });
+    }
+
+    // ── Pesquisa ──────────────────────────────────────────────────────────────
+    async function pesquisar() {
+      const data = document.getElementById("pesq-data").value;
+      if (!data) return;
+      const res = await fetch(`/api/pesquisa?data=${data}`);
+      const body = await res.json();
+      const el = document.getElementById("pesq-resultado");
+      if (!res.ok) {
+        el.innerHTML = `<div class="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-sm">❌ ${body.erro}</div>`;
+        return;
+      }
+      if (!body.resultados.length) {
+        el.innerHTML = `<div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl p-4 text-sm">⚠️ Nenhum registo encontrado com peso ≤ ${body.peso_ref.toFixed(1)} kg.</div>`;
+        return;
+      }
+      el.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
+          <div class="px-4 py-3 bg-blue-50 border-b border-blue-100">
+            <p class="text-sm text-blue-700">
+              Em <strong>${formatDate(data)}</strong> pesavas <strong>${body.peso_ref.toFixed(1)} kg</strong>.
+              Últimas datas com peso igual ou inferior:
+            </p>
+          </div>
+          <div class="divide-y divide-gray-100">
+            ${body.resultados.map((r, i) => `
+              <div class="flex items-center justify-between px-4 py-3">
+                <span class="text-sm text-gray-500">${i + 1}.</span>
+                <span class="text-sm font-medium text-gray-700">${formatDate(r.data)}</span>
+                <span class="text-sm font-semibold text-blue-600">${r.peso.toFixed(1)} kg</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    // ── Importar Excel ────────────────────────────────────────────────────────
+    async function importExcel(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const data = await file.arrayBuffer();
+      const wb = XLSX.read(data);
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+
+      // Ignorar cabeçalho (linha 1)
+      const items = [];
+      for (let i = 1; i < rows.length; i++) {
+        const [dataCell, pesoCell] = rows[i];
+        if (!dataCell || !pesoCell) continue;
+        // Normalizar data: aceita DD/MM/YYYY, YYYY-MM-DD, ou serial Excel
+        let dataStr = String(dataCell).trim();
+        let peso = parseFloat(String(pesoCell).replace(",", "."));
+        if (isNaN(peso)) continue;
+
+        // Tentar converter formatos de data
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dataStr)) {
+          const [d, m, y] = dataStr.split("/");
+          dataStr = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+        } else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dataStr)) {
+          const [d, m, y] = dataStr.split("-");
+          dataStr = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+        }
+        // Validar formato final YYYY-MM-DD
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) continue;
+        items.push({ data: dataStr, peso });
+      }
+
+      if (!items.length) {
+        showMsg("import-msg", "⚠️ Nenhuma linha válida encontrada.", false);
+        return;
+      }
+
+      const res = await fetch("/api/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(items),
+      });
+      const body = await res.json();
+      showMsg("import-msg", `✔ ${body.inseridos} registos importados, ${body.ignorados} ignorados (duplicados).`);
+      input.value = "";
+      await loadRegistos();
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    document.addEventListener("DOMContentLoaded", async () => {
+      await loadRegistos();
+      // Pré-preencher formulário
+      document.getElementById("form-data").value = today();
+      document.getElementById("pesq-data").value = today();
+      resetForm();
+    });
+  </script>
+</body>
+</html>
