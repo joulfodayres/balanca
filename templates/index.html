@@ -199,16 +199,17 @@
     let editingId = null;
 
     // ── Helpers ────────────────────────────────────────────────────────────────
-    const today = () => new Date().toISOString().slice(0, 10);
-
-    function addDays(dateStr, days) {
-      const d = new Date(dateStr);
-      d.setDate(d.getDate() + days);
-      return d.toISOString().slice(0, 10);
+    function today() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${y}-${m}-${dd}`;
     }
 
     function formatDate(dateStr) {
-      const [y, m, d] = dateStr.split("-");
+      if (!dateStr) return "";
+      const [y, m, d] = String(dateStr).slice(0, 10).split("-");
       return `${d}/${m}/${y}`;
     }
 
@@ -289,29 +290,33 @@
         showMsg("form-msg", "⚠️ Preenche a data e o peso.", false);
         return;
       }
-      let res;
-      if (editingId) {
-        res = await fetch(`/api/registos/${editingId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data, peso }),
-        });
-      } else {
-        res = await fetch("/api/registos", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ data, peso }),
-        });
+      try {
+        let res;
+        if (editingId) {
+          res = await fetch(`/api/registos/${editingId}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data, peso }),
+          });
+        } else {
+          res = await fetch("/api/registos", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data, peso }),
+          });
+        }
+        const body = await res.json();
+        if (!res.ok) {
+          showMsg("form-msg", "❌ " + body.erro, false);
+          return;
+        }
+        showMsg("form-msg", editingId ? "✔ Registo atualizado!" : "✔ Registo guardado!");
+        editingId = null;
+        await loadRegistos();
+        resetForm();
+      } catch (err) {
+        showMsg("form-msg", "❌ Erro de ligação ao servidor: " + err.message, false);
       }
-      const body = await res.json();
-      if (!res.ok) {
-        showMsg("form-msg", "❌ " + body.erro, false);
-        return;
-      }
-      showMsg("form-msg", editingId ? "✔ Registo atualizado!" : "✔ Registo guardado!");
-      editingId = null;
-      await loadRegistos();
-      resetForm();
     }
 
     async function deleteRegisto(id) {
@@ -529,34 +534,51 @@
     }
 
     // ── Importar Excel ────────────────────────────────────────────────────────
+    function excelSerialToISO(serial) {
+      // Excel serial: dias desde 1900-01-01 (com bug do ano bissexto 1900)
+      const date = new Date((serial - 25569) * 86400 * 1000);
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const d = String(date.getUTCDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function parseDataCell(cell) {
+      if (!cell) return null;
+      // Número serial do Excel
+      if (typeof cell === "number") return excelSerialToISO(cell);
+      let s = String(cell).trim();
+      // DD/MM/YYYY
+      if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
+        const [d, m, y] = s.split("/");
+        return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+      }
+      // DD-MM-YYYY
+      if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) {
+        const [d, m, y] = s.split("-");
+        return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+      }
+      // YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+      return null;
+    }
+
     async function importExcel(input) {
       const file = input.files[0];
       if (!file) return;
       const data = await file.arrayBuffer();
-      const wb = XLSX.read(data);
+      const wb = XLSX.read(data, { cellDates: false });
       const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true });
 
-      // Ignorar cabeçalho (linha 1)
       const items = [];
       for (let i = 1; i < rows.length; i++) {
         const [dataCell, pesoCell] = rows[i];
-        if (!dataCell || !pesoCell) continue;
-        // Normalizar data: aceita DD/MM/YYYY, YYYY-MM-DD, ou serial Excel
-        let dataStr = String(dataCell).trim();
-        let peso = parseFloat(String(pesoCell).replace(",", "."));
+        if (!dataCell || pesoCell === undefined || pesoCell === null || pesoCell === "") continue;
+        const dataStr = parseDataCell(dataCell);
+        if (!dataStr) continue;
+        const peso = parseFloat(String(pesoCell).replace(",", "."));
         if (isNaN(peso)) continue;
-
-        // Tentar converter formatos de data
-        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(dataStr)) {
-          const [d, m, y] = dataStr.split("/");
-          dataStr = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-        } else if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(dataStr)) {
-          const [d, m, y] = dataStr.split("-");
-          dataStr = `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
-        }
-        // Validar formato final YYYY-MM-DD
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) continue;
         items.push({ data: dataStr, peso });
       }
 
