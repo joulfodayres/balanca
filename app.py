@@ -1,32 +1,37 @@
 import os
-import sqlite3
-from datetime import date
-from flask import Flask, request, jsonify, render_template
+import io
+import psycopg2
+import psycopg2.extras
+from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment
 
 app = Flask(__name__)
 CORS(app)
 
-DB_PATH = os.environ.get("DB_PATH", "data/balanca.db")
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 
 def get_db():
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
 
 
 def init_db():
-    with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS registos (
-                id   INTEGER PRIMARY KEY AUTOINCREMENT,
-                data DATE    NOT NULL UNIQUE,
-                peso REAL    NOT NULL
-            )
-        """)
-        conn.commit()
+    if not DATABASE_URL:
+        return
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS registos (
+            id   SERIAL PRIMARY KEY,
+            data DATE    NOT NULL UNIQUE,
+            peso REAL    NOT NULL
+        )
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
 
 
 init_db()
@@ -43,11 +48,13 @@ def index():
 
 @app.route("/api/registos", methods=["GET"])
 def list_registos():
-    with get_db() as conn:
-        rows = conn.execute(
-            "SELECT id, data, peso FROM registos ORDER BY data ASC"
-        ).fetchall()
-    return jsonify([dict(r) for r in rows])
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT id, data::text, peso FROM registos ORDER BY data ASC")
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify(rows)
 
 
 @app.route("/api/registos", methods=["POST"])
@@ -57,14 +64,20 @@ def create_registo():
     peso = body.get("peso")
     if not data or peso is None:
         return jsonify({"erro": "data e peso são obrigatórios"}), 400
+    conn = get_db()
+    cur = conn.cursor()
     try:
-        with get_db() as conn:
-            conn.execute(
-                "INSERT INTO registos (data, peso) VALUES (?, ?)", (data, peso)
-            )
-            conn.commit()
-    except sqlite3.IntegrityError:
+        cur.execute(
+            "INSERT INTO registos (data, peso) VALUES (%s, %s)", (data, peso)
+        )
+        conn.commit()
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        cur.close()
+        conn.close()
         return jsonify({"erro": f"Já existe registo para {data}"}), 409
+    cur.close()
+    conn.close()
     return jsonify({"ok": True}), 201
 
 
@@ -75,22 +88,30 @@ def update_registo(rid):
     peso = body.get("peso")
     if not data or peso is None:
         return jsonify({"erro": "data e peso são obrigatórios"}), 400
-    with get_db() as conn:
-        cur = conn.execute(
-            "UPDATE registos SET data=?, peso=? WHERE id=?", (data, peso, rid)
-        )
-        conn.commit()
-    if cur.rowcount == 0:
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE registos SET data=%s, peso=%s WHERE id=%s", (data, peso, rid)
+    )
+    rowcount = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    if rowcount == 0:
         return jsonify({"erro": "Registo não encontrado"}), 404
     return jsonify({"ok": True})
 
 
 @app.route("/api/registos/<int:rid>", methods=["DELETE"])
 def delete_registo(rid):
-    with get_db() as conn:
-        cur = conn.execute("DELETE FROM registos WHERE id=?", (rid,))
-        conn.commit()
-    if cur.rowcount == 0:
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM registos WHERE id=%s", (rid,))
+    rowcount = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    if rowcount == 0:
         return jsonify({"erro": "Registo não encontrado"}), 404
     return jsonify({"ok": True})
 
@@ -104,17 +125,23 @@ def import_registos():
         return jsonify({"erro": "Esperado array de {data, peso}"}), 400
     inserted = 0
     skipped = 0
-    with get_db() as conn:
-        for item in items:
-            try:
-                conn.execute(
-                    "INSERT INTO registos (data, peso) VALUES (?, ?)",
-                    (item["data"], item["peso"]),
-                )
+    conn = get_db()
+    cur = conn.cursor()
+    for item in items:
+        try:
+            cur.execute(
+                "INSERT INTO registos (data, peso) VALUES (%s, %s) ON CONFLICT (data) DO NOTHING",
+                (item["data"], item["peso"]),
+            )
+            if cur.rowcount > 0:
                 inserted += 1
-            except sqlite3.IntegrityError:
+            else:
                 skipped += 1
-        conn.commit()
+        except Exception:
+            skipped += 1
+    conn.commit()
+    cur.close()
+    conn.close()
     return jsonify({"inseridos": inserted, "ignorados": skipped})
 
 
@@ -125,29 +152,90 @@ def pesquisa():
     data = request.args.get("data")
     if not data:
         return jsonify({"erro": "Parâmetro 'data' obrigatório"}), 400
-    with get_db() as conn:
-        # peso registado na data indicada
-        row = conn.execute(
-            "SELECT peso FROM registos WHERE data = ?", (data,)
-        ).fetchone()
-        if not row:
-            return jsonify({"erro": f"Sem registo para {data}"}), 404
-        peso_ref = row["peso"]
-        # últimas 10 datas com peso <= peso_ref (excluindo a própria data)
-        rows = conn.execute(
-            """
-            SELECT data, peso FROM registos
-            WHERE peso <= ? AND data <= ?
-            ORDER BY data DESC
-            LIMIT 10
-            """,
-            (peso_ref, data),
-        ).fetchall()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT peso FROM registos WHERE data = %s", (data,))
+    row = cur.fetchone()
+    if not row:
+        cur.close()
+        conn.close()
+        return jsonify({"erro": f"Sem registo para {data}"}), 404
+    peso_ref = row["peso"]
+    cur.execute(
+        """
+        SELECT data::text, peso FROM registos
+        WHERE peso <= %s AND data <= %s
+        ORDER BY data DESC
+        LIMIT 10
+        """,
+        (peso_ref, data),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
     return jsonify({
         "data": data,
         "peso_ref": peso_ref,
-        "resultados": [dict(r) for r in rows],
+        "resultados": rows,
     })
+
+
+# ─── API: Exportar Excel ──────────────────────────────────────────────────────
+
+@app.route("/api/export", methods=["GET"])
+def export_excel():
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT data::text, peso FROM registos ORDER BY data ASC")
+    rows = cur.fetchall()
+    cur.close()
+    conn.close()
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Registos"
+
+    # Cabeçalho
+    header_fill = PatternFill(start_color="3B82F6", end_color="3B82F6", fill_type="solid")
+    for col, title in enumerate(["Data", "Peso (kg)"], start=1):
+        cell = ws.cell(row=1, column=col, value=title)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    ws.column_dimensions["A"].width = 14
+    ws.column_dimensions["B"].width = 12
+
+    for i, row in enumerate(rows, start=2):
+        ws.cell(row=i, column=1, value=row["data"])
+        ws.cell(row=i, column=2, value=round(row["peso"], 1))
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(
+        buf,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name="balanca.xlsx",
+    )
+
+
+# ─── API: Apagar todos os dados ───────────────────────────────────────────────
+
+@app.route("/api/apagar-tudo", methods=["DELETE"])
+def apagar_tudo():
+    body = request.get_json()
+    if not body or body.get("password") != "1973":
+        return jsonify({"erro": "Password incorreta"}), 403
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM registos")
+    deleted = cur.rowcount
+    conn.commit()
+    cur.close()
+    conn.close()
+    return jsonify({"ok": True, "eliminados": deleted})
 
 
 if __name__ == "__main__":
