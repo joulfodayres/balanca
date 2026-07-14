@@ -1,39 +1,84 @@
 <!DOCTYPE html>
-<html lang="pt">
+<html lang="pt" class="dark">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Balança</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Segoe UI', 'system-ui', 'sans-serif'] }
+        }
+      }
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
   <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
   <style>
-    body { font-family: 'Segoe UI', system-ui, sans-serif; }
-    .tab-active { border-bottom: 3px solid #3b82f6; color: #3b82f6; font-weight: 600; }
-    .tab-inactive { border-bottom: 3px solid transparent; color: #6b7280; }
-    .tab-inactive:hover { color: #374151; }
+    /* Scrollbar dark */
+    :root { color-scheme: dark; }
     input[type=number]::-webkit-inner-spin-button { opacity: 1; }
+    input[type=date]::-webkit-calendar-picker-indicator { filter: invert(0.8); }
+
+    /* Tab indicator */
+    .tab-active  { border-bottom: 3px solid #60a5fa; color: #60a5fa; font-weight: 600; }
+    .tab-inactive{ border-bottom: 3px solid transparent; color: #9ca3af; }
+    .tab-inactive:hover { color: #e5e7eb; }
+
+    /* Pill buttons */
+    .tf-btn {
+      padding: 6px 14px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      border: 1px solid;
+      transition: all 0.15s;
+      cursor: pointer;
+    }
+    .tf-active   { background: #3b82f6; color: white; border-color: #3b82f6; }
+    .tf-inactive { background: transparent; color: #9ca3af; border-color: #374151; }
+    .tf-inactive:hover { background: #1f2937; color: #e5e7eb; }
+
+    /* Bottom nav (mobile) */
+    @media (max-width: 640px) {
+      #bottom-nav { display: flex; }
+      #top-tabs   { display: none; }
+      main        { padding-bottom: 5rem; }
+    }
+    @media (min-width: 641px) {
+      #bottom-nav { display: none; }
+      #top-tabs   { display: flex; }
+    }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
+<body class="bg-gray-950 text-gray-100 min-h-screen">
 
   <!-- Header -->
-  <header class="bg-white shadow-sm sticky top-0 z-10">
-    <div class="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
-      <span class="text-2xl">⚖️</span>
-      <h1 class="text-xl font-bold text-gray-800">Balança</h1>
+  <header class="bg-gray-900 border-b border-gray-800 sticky top-0 z-20">
+    <div class="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <span class="text-3xl">⚖️</span>
+        <h1 class="text-2xl font-bold text-white">Balança</h1>
+      </div>
+      <!-- Toggle dark/light -->
+      <button onclick="toggleTheme()" class="text-2xl p-2 rounded-xl hover:bg-gray-800 transition-colors" title="Alternar tema">
+        <span id="theme-icon">☀️</span>
+      </button>
     </div>
-    <!-- Tabs -->
-    <div class="max-w-2xl mx-auto px-4 flex gap-6 border-t border-gray-100">
+    <!-- Tabs desktop -->
+    <div id="top-tabs" class="max-w-2xl mx-auto px-4 gap-8 border-t border-gray-800">
       <button onclick="showTab('registar')" id="tab-registar"
-        class="tab-active py-2 text-sm transition-colors">📝 Registar</button>
+        class="tab-active py-3 text-base transition-colors">📝 Registar</button>
       <button onclick="showTab('graficos')" id="tab-graficos"
-        class="tab-inactive py-2 text-sm transition-colors">📊 Gráficos</button>
+        class="tab-inactive py-3 text-base transition-colors">📊 Gráficos</button>
       <button onclick="showTab('pesquisa')" id="tab-pesquisa"
-        class="tab-inactive py-2 text-sm transition-colors">🔍 Pesquisa</button>
+        class="tab-inactive py-3 text-base transition-colors">🔍 Pesquisa</button>
       <button onclick="showTab('dados')" id="tab-dados"
-        class="tab-inactive py-2 text-sm transition-colors">⚙️ Dados</button>
+        class="tab-inactive py-3 text-base transition-colors">⚙️ Dados</button>
     </div>
   </header>
 
@@ -41,40 +86,43 @@
 
     <!-- ═══ TAB: REGISTAR ═══ -->
     <section id="sec-registar">
-      <h2 class="text-lg font-semibold text-gray-700 mb-4">Registar Peso</h2>
+      <h2 class="text-xl font-semibold text-gray-200 mb-5">Registar Peso</h2>
 
       <!-- Formulário -->
-      <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
-        <div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+        <div class="grid grid-cols-2 gap-5 mb-5">
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Data</label>
-            <input type="date" id="form-data"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <label class="block text-sm font-medium text-gray-400 mb-2">Data</label>
+            <!-- Mostramos um input texto DD/MM/YYYY e escondemos o date real -->
+            <input type="text" id="form-data-display" placeholder="DD/MM/AAAA" maxlength="10"
+              oninput="syncDateFromDisplay('form-data-display','form-data')"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-600" />
+            <input type="date" id="form-data" class="hidden" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-600 mb-1">Peso (kg)</label>
+            <label class="block text-sm font-medium text-gray-400 mb-2">Peso (kg)</label>
             <input type="number" id="form-peso" step="0.1" min="20" max="300"
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              class="w-full bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-600"
               placeholder="ex: 75.4" />
           </div>
         </div>
         <div class="flex gap-3">
           <button onclick="guardarRegisto()"
-            class="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+            class="flex-1 bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white font-semibold py-3 rounded-xl text-base transition-colors">
             💾 Guardar
           </button>
           <button onclick="resetForm()"
-            class="px-4 bg-gray-100 hover:bg-gray-200 text-gray-600 font-medium py-2 rounded-lg text-sm transition-colors">
+            class="px-5 bg-gray-800 hover:bg-gray-700 text-gray-300 font-medium py-3 rounded-xl text-base transition-colors">
             ✖ Limpar
           </button>
         </div>
-        <p id="form-msg" class="mt-3 text-sm text-center hidden"></p>
+        <p id="form-msg" class="mt-4 text-base text-center hidden"></p>
       </div>
 
       <!-- Lista de registos -->
-      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Registos</h3>
+      <h3 class="text-sm font-semibold text-gray-500 uppercase tracking-widest mb-3">Registos</h3>
       <div id="lista-registos" class="space-y-2">
-        <p class="text-sm text-gray-400 text-center py-6">A carregar…</p>
+        <p class="text-base text-gray-500 text-center py-8">A carregar…</p>
       </div>
     </section>
 
@@ -82,26 +130,26 @@
     <section id="sec-graficos" class="hidden">
 
       <!-- 5.1 Gráfico Linear -->
-      <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
-        <h2 class="text-lg font-semibold text-gray-700 mb-3">📈 Evolução do Peso</h2>
-        <div class="flex flex-wrap gap-2 mb-4">
-          <button onclick="setTimeframe(7)"   id="tf-7"   class="tf-btn tf-active">7d</button>
-          <button onclick="setTimeframe(30)"  id="tf-30"  class="tf-btn tf-inactive">1M</button>
-          <button onclick="setTimeframe(90)"  id="tf-90"  class="tf-btn tf-inactive">3M</button>
-          <button onclick="setTimeframe(180)" id="tf-180" class="tf-btn tf-inactive">6M</button>
-          <button onclick="setTimeframe(365)" id="tf-365" class="tf-btn tf-inactive">1A</button>
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+        <h2 class="text-xl font-semibold text-gray-200 mb-4">📈 Evolução do Peso</h2>
+        <div class="flex flex-wrap gap-2 mb-5">
+          <button onclick="setTimeframe(7)"    id="tf-7"    class="tf-btn tf-active">7d</button>
+          <button onclick="setTimeframe(30)"   id="tf-30"   class="tf-btn tf-inactive">1M</button>
+          <button onclick="setTimeframe(90)"   id="tf-90"   class="tf-btn tf-inactive">3M</button>
+          <button onclick="setTimeframe(180)"  id="tf-180"  class="tf-btn tf-inactive">6M</button>
+          <button onclick="setTimeframe(365)"  id="tf-365"  class="tf-btn tf-inactive">1A</button>
           <button onclick="setTimeframe(1095)" id="tf-1095" class="tf-btn tf-inactive">3A</button>
           <button onclick="setTimeframe(1825)" id="tf-1825" class="tf-btn tf-inactive">5A</button>
-          <button onclick="setTimeframe(0)"   id="tf-0"   class="tf-btn tf-inactive">Tudo</button>
+          <button onclick="setTimeframe(0)"    id="tf-0"    class="tf-btn tf-inactive">Tudo</button>
         </div>
         <canvas id="chart-linear" height="220"></canvas>
       </div>
 
       <!-- 5.2 Rolling 12M -->
-      <div class="bg-white rounded-2xl shadow-sm p-5">
-        <h2 class="text-lg font-semibold text-gray-700 mb-3">📉 Média Móvel 12 Meses</h2>
-        <div class="flex gap-3 mb-4">
-          <span class="text-sm text-gray-500 self-center">Janela rolling:</span>
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6">
+        <h2 class="text-xl font-semibold text-gray-200 mb-4">📉 Média Móvel 12 Meses</h2>
+        <div class="flex gap-3 mb-5 items-center">
+          <span class="text-sm text-gray-400">Janela rolling:</span>
           <button onclick="setRolling(2)" id="rol-2" class="tf-btn tf-active">2 anos</button>
           <button onclick="setRolling(3)" id="rol-3" class="tf-btn tf-inactive">3 anos</button>
         </div>
@@ -111,85 +159,137 @@
 
     <!-- ═══ TAB: PESQUISA ═══ -->
     <section id="sec-pesquisa" class="hidden">
-      <h2 class="text-lg font-semibold text-gray-700 mb-4">🔍 Pesquisa Histórica</h2>
-      <div class="bg-white rounded-2xl shadow-sm p-5 mb-6">
-        <label class="block text-sm font-medium text-gray-600 mb-1">Seleciona uma data</label>
+      <h2 class="text-xl font-semibold text-gray-200 mb-5">🔍 Pesquisa Histórica</h2>
+
+      <!-- Pesquisa por data -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-4">
+        <h3 class="text-base font-semibold text-gray-300 mb-1">Por data</h3>
+        <p class="text-sm text-gray-500 mb-4">Seleciona uma data e vê as últimas 10 datas em que pesavas igual ou menos.</p>
         <div class="flex gap-3">
-          <input type="date" id="pesq-data"
-            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
-          <button onclick="pesquisar()"
-            class="bg-blue-500 hover:bg-blue-600 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+          <input type="text" id="pesq-data-display" placeholder="DD/MM/AAAA" maxlength="10"
+            oninput="syncDateFromDisplay('pesq-data-display','pesq-data')"
+            class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-600" />
+          <input type="date" id="pesq-data" class="hidden" />
+          <button onclick="pesquisarPorData()"
+            class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-3 rounded-xl text-base transition-colors">
             Pesquisar
           </button>
         </div>
-        <p class="text-xs text-gray-400 mt-2">Mostra as últimas 10 datas em que o peso foi igual ou inferior ao da data selecionada.</p>
       </div>
+
+      <!-- Pesquisa por peso (BACKLOG-002) -->
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-6">
+        <h3 class="text-base font-semibold text-gray-300 mb-1">Por peso</h3>
+        <p class="text-sm text-gray-500 mb-4">Introduz um peso e vê as 10 datas mais recentes em que pesavas esse valor ou menos.</p>
+        <div class="flex gap-3">
+          <input type="number" id="pesq-peso" step="0.1" min="20" max="300"
+            placeholder="ex: 75.4"
+            class="flex-1 bg-gray-800 border border-gray-700 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-100 placeholder-gray-600" />
+          <button onclick="pesquisarPorPeso()"
+            class="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-5 py-3 rounded-xl text-base transition-colors">
+            Pesquisar
+          </button>
+        </div>
+      </div>
+
       <div id="pesq-resultado"></div>
     </section>
 
     <!-- ═══ TAB: DADOS ═══ -->
     <section id="sec-dados" class="hidden">
-      <h2 class="text-lg font-semibold text-gray-700 mb-4">⚙️ Gestão de Dados</h2>
+      <h2 class="text-xl font-semibold text-gray-200 mb-5">⚙️ Gestão de Dados</h2>
 
       <!-- Importar -->
-      <div class="bg-white rounded-2xl shadow-sm p-5 mb-4">
-        <h3 class="text-sm font-semibold text-gray-600 mb-2">📂 Importar Excel</h3>
-        <p class="text-xs text-gray-400 mb-3">
-          Ficheiro <code>.xlsx</code> com duas colunas: <strong>data</strong> (coluna A) e <strong>peso</strong> (coluna B).
-          A primeira linha deve ser o cabeçalho.
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-4">
+        <h3 class="text-base font-semibold text-gray-300 mb-1">📂 Importar Excel</h3>
+        <p class="text-sm text-gray-500 mb-4">
+          Ficheiro <code class="bg-gray-800 px-1 rounded">.xlsx</code> com duas colunas: <strong>data</strong> (coluna A) e <strong>peso</strong> (coluna B). A primeira linha deve ser o cabeçalho.
         </p>
-        <label class="flex flex-col items-center justify-center w-full h-24 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-blue-400 hover:bg-blue-50 transition-colors">
-          <span class="text-2xl mb-1">📂</span>
-          <span class="text-sm text-gray-500">Clica para escolher o ficheiro</span>
+        <label class="flex flex-col items-center justify-center w-full h-28 border-2 border-dashed border-gray-700 rounded-2xl cursor-pointer hover:border-blue-500 hover:bg-gray-800 transition-colors">
+          <span class="text-3xl mb-2">📂</span>
+          <span class="text-sm text-gray-400">Clica para escolher o ficheiro</span>
           <input type="file" id="import-file" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)" />
         </label>
-        <p id="import-msg" class="mt-3 text-sm text-center hidden"></p>
+        <p id="import-msg" class="mt-4 text-base text-center hidden"></p>
       </div>
 
       <!-- Exportar -->
-      <div class="bg-white rounded-2xl shadow-sm p-5 mb-4">
-        <h3 class="text-sm font-semibold text-gray-600 mb-2">📥 Exportar Excel</h3>
-        <p class="text-xs text-gray-400 mb-3">Descarrega todos os registos num ficheiro <code>.xlsx</code>.</p>
+      <div class="bg-gray-900 border border-gray-800 rounded-2xl p-6 mb-4">
+        <h3 class="text-base font-semibold text-gray-300 mb-1">📥 Exportar Excel</h3>
+        <p class="text-sm text-gray-500 mb-4">Descarrega todos os registos num ficheiro <code class="bg-gray-800 px-1 rounded">.xlsx</code>.</p>
         <button onclick="exportarExcel()"
-          class="w-full bg-green-500 hover:bg-green-600 text-white font-medium py-2 rounded-lg text-sm transition-colors">
+          class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 rounded-xl text-base transition-colors">
           📥 Exportar todos os dados
         </button>
       </div>
 
       <!-- Apagar tudo -->
-      <div class="bg-white rounded-2xl shadow-sm p-5 border border-red-100">
-        <h3 class="text-sm font-semibold text-red-600 mb-2">🗑️ Apagar todos os dados</h3>
-        <p class="text-xs text-gray-400 mb-3">Esta ação é irreversível. Todos os registos serão eliminados.</p>
+      <div class="bg-gray-900 border border-red-900 rounded-2xl p-6">
+        <h3 class="text-base font-semibold text-red-400 mb-1">🗑️ Apagar todos os dados</h3>
+        <p class="text-sm text-gray-500 mb-4">Esta ação é irreversível. Todos os registos serão eliminados.</p>
         <div class="flex gap-3">
           <input type="password" id="apagar-password" placeholder="Password"
-            class="flex-1 border border-red-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400" />
+            class="flex-1 bg-gray-800 border border-red-900 rounded-xl px-4 py-3 text-base focus:outline-none focus:ring-2 focus:ring-red-500 text-gray-100 placeholder-gray-600" />
           <button onclick="apagarTudo()"
-            class="bg-red-500 hover:bg-red-600 text-white font-medium px-5 py-2 rounded-lg text-sm transition-colors">
+            class="bg-red-700 hover:bg-red-600 text-white font-semibold px-5 py-3 rounded-xl text-base transition-colors">
             Apagar
           </button>
         </div>
-        <p id="apagar-msg" class="mt-3 text-sm text-center hidden"></p>
+        <p id="apagar-msg" class="mt-4 text-base text-center hidden"></p>
       </div>
     </section>
 
   </main>
 
-  <style>
-    .tf-btn {
-      padding: 4px 12px;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 500;
-      border: 1px solid;
-      transition: all 0.15s;
-      cursor: pointer;
-    }
-    .tf-active  { background:#3b82f6; color:white; border-color:#3b82f6; }
-    .tf-inactive{ background:white;   color:#6b7280; border-color:#d1d5db; }
-    .tf-inactive:hover { background:#f3f4f6; }
-  </style>
+  <!-- Bottom nav (mobile) -->
+  <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 z-20 justify-around items-center py-2 px-2">
+    <button onclick="showTab('registar')" id="bnav-registar"
+      class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors bnav-active">
+      <span class="text-2xl">📝</span>
+      <span class="text-xs font-medium text-blue-400">Registar</span>
+    </button>
+    <button onclick="showTab('graficos')" id="bnav-graficos"
+      class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors bnav-inactive">
+      <span class="text-2xl">📊</span>
+      <span class="text-xs font-medium text-gray-500">Gráficos</span>
+    </button>
+    <button onclick="showTab('pesquisa')" id="bnav-pesquisa"
+      class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors bnav-inactive">
+      <span class="text-2xl">🔍</span>
+      <span class="text-xs font-medium text-gray-500">Pesquisa</span>
+    </button>
+    <button onclick="showTab('dados')" id="bnav-dados"
+      class="flex flex-col items-center gap-1 px-3 py-2 rounded-xl transition-colors bnav-inactive">
+      <span class="text-2xl">⚙️</span>
+      <span class="text-xs font-medium text-gray-500">Dados</span>
+    </button>
+  </nav>
 
   <script>
+    // ── Theme ──────────────────────────────────────────────────────────────────
+    let isDark = localStorage.getItem("theme") !== "light";
+
+    function applyTheme() {
+      if (isDark) {
+        document.documentElement.classList.add("dark");
+        document.documentElement.style.colorScheme = "dark";
+        document.getElementById("theme-icon").textContent = "☀️";
+      } else {
+        document.documentElement.classList.remove("dark");
+        document.documentElement.style.colorScheme = "light";
+        document.getElementById("theme-icon").textContent = "🌙";
+        // Light mode overrides
+        document.body.classList.replace("bg-gray-950", "bg-gray-100");
+        document.body.classList.add("text-gray-900");
+      }
+    }
+
+    function toggleTheme() {
+      isDark = !isDark;
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+      location.reload(); // simplest way to reapply all Tailwind classes
+    }
+
     // ── State ──────────────────────────────────────────────────────────────────
     let allRegistos = [];
     let chartLinear = null;
@@ -198,13 +298,15 @@
     let rollingYears = 2;
     let editingId = null;
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
+    // ── Date helpers ───────────────────────────────────────────────────────────
     function today() {
       const d = new Date();
-      const y = d.getFullYear();
-      const m = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${y}-${m}-${dd}`;
+      return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+    }
+
+    function todayDisplay() {
+      const d = new Date();
+      return `${String(d.getDate()).padStart(2,"0")}/${String(d.getMonth()+1).padStart(2,"0")}/${d.getFullYear()}`;
     }
 
     function formatDate(dateStr) {
@@ -213,10 +315,35 @@
       return `${d}/${m}/${y}`;
     }
 
+    // Converte DD/MM/YYYY → YYYY-MM-DD
+    function displayToISO(display) {
+      if (!display) return "";
+      const parts = display.split("/");
+      if (parts.length !== 3) return "";
+      const [d, m, y] = parts;
+      if (d.length !== 2 || m.length !== 2 || y.length !== 4) return "";
+      return `${y}-${m}-${d}`;
+    }
+
+    // Formata automaticamente enquanto o utilizador escreve (adiciona /)
+    function syncDateFromDisplay(displayId, hiddenId) {
+      const el = document.getElementById(displayId);
+      let v = el.value.replace(/[^\d]/g, "");
+      if (v.length > 8) v = v.slice(0, 8);
+      let formatted = v;
+      if (v.length >= 5) formatted = v.slice(0,2) + "/" + v.slice(2,4) + "/" + v.slice(4);
+      else if (v.length >= 3) formatted = v.slice(0,2) + "/" + v.slice(2);
+      el.value = formatted;
+      // Sync para o hidden
+      const iso = displayToISO(formatted);
+      document.getElementById(hiddenId).value = iso;
+    }
+
+    // ── Mensagens ──────────────────────────────────────────────────────────────
     function showMsg(elId, text, ok = true) {
       const el = document.getElementById(elId);
       el.textContent = text;
-      el.className = `mt-3 text-sm text-center ${ok ? "text-green-600" : "text-red-500"}`;
+      el.className = `mt-4 text-base text-center ${ok ? "text-emerald-400" : "text-red-400"}`;
       el.classList.remove("hidden");
       setTimeout(() => el.classList.add("hidden"), 3500);
     }
@@ -226,7 +353,18 @@
       ["registar","graficos","pesquisa","dados"].forEach(t => {
         document.getElementById("sec-" + t).classList.toggle("hidden", t !== name);
         document.getElementById("tab-" + t).className =
-          `${t === name ? "tab-active" : "tab-inactive"} py-2 text-sm transition-colors`;
+          `${t === name ? "tab-active" : "tab-inactive"} py-3 text-base transition-colors`;
+        const bn = document.getElementById("bnav-" + t);
+        if (bn) {
+          const span = bn.querySelector("span:last-child");
+          if (t === name) {
+            bn.classList.add("bnav-active");
+            span.className = "text-xs font-medium text-blue-400";
+          } else {
+            bn.classList.remove("bnav-active");
+            span.className = "text-xs font-medium text-gray-500";
+          }
+        }
       });
       if (name === "graficos") renderCharts();
     }
@@ -242,21 +380,21 @@
     function renderLista() {
       const el = document.getElementById("lista-registos");
       if (!allRegistos.length) {
-        el.innerHTML = `<p class="text-sm text-gray-400 text-center py-6">Sem registos ainda.</p>`;
+        el.innerHTML = `<p class="text-base text-gray-500 text-center py-8">Sem registos ainda.</p>`;
         return;
       }
       const sorted = [...allRegistos].sort((a, b) => b.data.localeCompare(a.data));
       el.innerHTML = sorted.map(r => `
-        <div class="bg-white rounded-xl shadow-sm px-4 py-3 flex items-center justify-between">
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl px-5 py-4 flex items-center justify-between">
           <div>
-            <span class="text-sm font-medium text-gray-700">${formatDate(r.data)}</span>
-            <span class="ml-3 text-blue-600 font-semibold">${r.peso.toFixed(1)} kg</span>
+            <span class="text-base font-medium text-gray-200">${formatDate(r.data)}</span>
+            <span class="ml-4 text-blue-400 font-bold text-lg">${r.peso.toFixed(1)} kg</span>
           </div>
           <div class="flex gap-2">
             <button onclick="editRegisto(${r.id})"
-              class="text-xs text-gray-400 hover:text-blue-500 transition-colors px-2 py-1 rounded hover:bg-blue-50">✏️ Editar</button>
+              class="text-sm text-gray-500 hover:text-blue-400 transition-colors px-3 py-2 rounded-xl hover:bg-gray-800">✏️ Editar</button>
             <button onclick="deleteRegisto(${r.id})"
-              class="text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1 rounded hover:bg-red-50">🗑️</button>
+              class="text-sm text-gray-500 hover:text-red-400 transition-colors px-3 py-2 rounded-xl hover:bg-gray-800">🗑️</button>
           </div>
         </div>
       `).join("");
@@ -265,7 +403,10 @@
     // ── Formulário ────────────────────────────────────────────────────────────
     function resetForm() {
       editingId = null;
+      document.getElementById("form-data-display").value = todayDisplay();
       document.getElementById("form-data").value = today();
+      document.getElementById("pesq-data-display").value = todayDisplay();
+      document.getElementById("pesq-data").value = today();
       const ultimo = allRegistos.length
         ? [...allRegistos].sort((a,b) => b.data.localeCompare(a.data))[0].peso
         : "";
@@ -277,6 +418,7 @@
       const r = allRegistos.find(x => x.id === id);
       if (!r) return;
       editingId = id;
+      document.getElementById("form-data-display").value = formatDate(r.data);
       document.getElementById("form-data").value = r.data;
       document.getElementById("form-peso").value = r.peso.toFixed(1);
       showTab("registar");
@@ -315,7 +457,7 @@
         await loadRegistos();
         resetForm();
       } catch (err) {
-        showMsg("form-msg", "❌ Erro de ligação ao servidor: " + err.message, false);
+        showMsg("form-msg", "❌ Erro de ligação: " + err.message, false);
       }
     }
 
@@ -326,6 +468,16 @@
     }
 
     // ── Gráficos ──────────────────────────────────────────────────────────────
+    const CHART_COLORS = {
+      grid: "#1f2937",
+      tick: "#6b7280",
+      line: "#60a5fa",
+      fill: "rgba(96,165,250,0.10)",
+      rolling: "#f59e0b",
+      rollingFill: "rgba(245,158,11,0.10)",
+      raw: "#374151",
+    };
+
     function setTimeframe(days) {
       currentTimeframe = days;
       document.querySelectorAll("[id^='tf-']").forEach(b => {
@@ -354,6 +506,13 @@
       return sorted.filter(r => new Date(r.data) >= cutoff);
     }
 
+    function chartDefaults() {
+      return {
+        grid: { color: CHART_COLORS.grid },
+        ticks: { color: CHART_COLORS.tick },
+      };
+    }
+
     function renderLinear() {
       const data = filteredData(currentTimeframe);
       const labels = data.map(r => r.data);
@@ -368,11 +527,11 @@
           datasets: [{
             label: "Peso (kg)",
             data: values,
-            borderColor: "#3b82f6",
-            backgroundColor: "rgba(59,130,246,0.08)",
+            borderColor: CHART_COLORS.line,
+            backgroundColor: CHART_COLORS.fill,
             borderWidth: 2,
             pointRadius: data.length > 60 ? 0 : 3,
-            pointHoverRadius: 5,
+            pointHoverRadius: 6,
             tension: 0.3,
             fill: true,
           }]
@@ -383,6 +542,11 @@
           plugins: {
             legend: { display: false },
             tooltip: {
+              backgroundColor: "#1f2937",
+              titleColor: "#e5e7eb",
+              bodyColor: "#9ca3af",
+              borderColor: "#374151",
+              borderWidth: 1,
               callbacks: {
                 title: items => formatDate(items[0].label),
                 label: item => ` ${item.parsed.y.toFixed(1)} kg`,
@@ -394,12 +558,12 @@
               type: "time",
               time: { unit: currentTimeframe <= 30 ? "day" : currentTimeframe <= 365 ? "month" : "year",
                       tooltipFormat: "yyyy-MM-dd" },
-              grid: { display: false },
-              ticks: { maxTicksLimit: 8 }
+              grid: { color: CHART_COLORS.grid },
+              ticks: { color: CHART_COLORS.tick, maxTicksLimit: 8 },
             },
             y: {
-              grid: { color: "#f3f4f6" },
-              ticks: { callback: v => v.toFixed(1) + " kg" }
+              grid: { color: CHART_COLORS.grid },
+              ticks: { color: CHART_COLORS.tick, callback: v => v.toFixed(1) + " kg" }
             }
           }
         }
@@ -407,23 +571,20 @@
     }
 
     function calcRolling12M(sorted, windowYears) {
-      // Para cada ponto, calcula a média dos últimos 12 meses
-      // Filtrar só os pontos dentro da janela de windowYears a partir do início
       const result = [];
       for (let i = 0; i < sorted.length; i++) {
         const current = new Date(sorted[i].data);
         const start = new Date(current);
         start.setFullYear(start.getFullYear() - 1);
-        const window = sorted.filter(r => {
+        const win = sorted.filter(r => {
           const d = new Date(r.data);
           return d >= start && d <= current;
         });
-        if (window.length > 0) {
-          const avg = window.reduce((s, r) => s + r.peso, 0) / window.length;
+        if (win.length > 0) {
+          const avg = win.reduce((s, r) => s + r.peso, 0) / win.length;
           result.push({ data: sorted[i].data, media: avg });
         }
       }
-      // Filtrar para mostrar só os últimos windowYears
       if (result.length === 0) return result;
       const lastDate = new Date(result[result.length - 1].data);
       const cutoff = new Date(lastDate);
@@ -452,8 +613,8 @@
             {
               label: "Média Móvel 12M",
               data: values,
-              borderColor: "#f59e0b",
-              backgroundColor: "rgba(245,158,11,0.08)",
+              borderColor: CHART_COLORS.rolling,
+              backgroundColor: CHART_COLORS.rollingFill,
               borderWidth: 2.5,
               pointRadius: 0,
               tension: 0.4,
@@ -462,7 +623,7 @@
             {
               label: "Peso real",
               data: rawValues,
-              borderColor: "#cbd5e1",
+              borderColor: CHART_COLORS.raw,
               borderWidth: 1,
               pointRadius: 0,
               tension: 0.2,
@@ -475,57 +636,90 @@
           interaction: { mode: "index", intersect: false },
           plugins: {
             tooltip: {
+              backgroundColor: "#1f2937",
+              titleColor: "#e5e7eb",
+              bodyColor: "#9ca3af",
+              borderColor: "#374151",
+              borderWidth: 1,
               callbacks: {
                 title: items => formatDate(items[0].label),
                 label: item => ` ${item.dataset.label}: ${item.parsed.y.toFixed(1)} kg`,
               }
+            },
+            legend: {
+              labels: { color: "#9ca3af", boxWidth: 24 }
             }
           },
           scales: {
             x: {
               type: "time",
               time: { unit: "month", tooltipFormat: "yyyy-MM-dd" },
-              grid: { display: false },
-              ticks: { maxTicksLimit: 10 }
+              grid: { color: CHART_COLORS.grid },
+              ticks: { color: CHART_COLORS.tick, maxTicksLimit: 10 }
             },
             y: {
-              grid: { color: "#f3f4f6" },
-              ticks: { callback: v => v.toFixed(1) + " kg" }
+              grid: { color: CHART_COLORS.grid },
+              ticks: { color: CHART_COLORS.tick, callback: v => v.toFixed(1) + " kg" }
             }
           }
         }
       });
     }
 
-    // ── Pesquisa ──────────────────────────────────────────────────────────────
-    async function pesquisar() {
+    // ── Pesquisa por data ─────────────────────────────────────────────────────
+    async function pesquisarPorData() {
       const data = document.getElementById("pesq-data").value;
       if (!data) return;
       const res = await fetch(`/api/pesquisa?data=${data}`);
       const body = await res.json();
       const el = document.getElementById("pesq-resultado");
       if (!res.ok) {
-        el.innerHTML = `<div class="bg-red-50 border border-red-200 text-red-600 rounded-xl p-4 text-sm">❌ ${body.erro}</div>`;
+        el.innerHTML = `<div class="bg-red-950 border border-red-800 text-red-400 rounded-2xl p-4 text-base">❌ ${body.erro}</div>`;
         return;
       }
       if (!body.resultados.length) {
-        el.innerHTML = `<div class="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded-xl p-4 text-sm">⚠️ Nenhum registo encontrado com peso ≤ ${body.peso_ref.toFixed(1)} kg.</div>`;
+        el.innerHTML = `<div class="bg-yellow-950 border border-yellow-800 text-yellow-400 rounded-2xl p-4 text-base">⚠️ Nenhum registo com peso ≤ ${body.peso_ref.toFixed(1)} kg.</div>`;
         return;
       }
-      el.innerHTML = `
-        <div class="bg-white rounded-2xl shadow-sm overflow-hidden">
-          <div class="px-4 py-3 bg-blue-50 border-b border-blue-100">
-            <p class="text-sm text-blue-700">
-              Em <strong>${formatDate(data)}</strong> pesavas <strong>${body.peso_ref.toFixed(1)} kg</strong>.
-              Últimas datas com peso igual ou inferior:
-            </p>
+      el.innerHTML = renderResultados(
+        `Em <strong>${formatDate(data)}</strong> pesavas <strong>${body.peso_ref.toFixed(1)} kg</strong>. Últimas datas com peso igual ou inferior:`,
+        body.resultados
+      );
+    }
+
+    // ── Pesquisa por peso (BACKLOG-002) ───────────────────────────────────────
+    async function pesquisarPorPeso() {
+      const peso = parseFloat(document.getElementById("pesq-peso").value);
+      if (isNaN(peso)) return;
+      const res = await fetch(`/api/pesquisa-peso?peso=${peso}`);
+      const body = await res.json();
+      const el = document.getElementById("pesq-resultado");
+      if (!res.ok) {
+        el.innerHTML = `<div class="bg-red-950 border border-red-800 text-red-400 rounded-2xl p-4 text-base">❌ ${body.erro}</div>`;
+        return;
+      }
+      if (!body.resultados.length) {
+        el.innerHTML = `<div class="bg-yellow-950 border border-yellow-800 text-yellow-400 rounded-2xl p-4 text-base">⚠️ Nenhum registo com peso ≤ ${peso.toFixed(1)} kg.</div>`;
+        return;
+      }
+      el.innerHTML = renderResultados(
+        `10 datas mais recentes com peso ≤ <strong>${peso.toFixed(1)} kg</strong>:`,
+        body.resultados
+      );
+    }
+
+    function renderResultados(header, resultados) {
+      return `
+        <div class="bg-gray-900 border border-gray-800 rounded-2xl overflow-hidden">
+          <div class="px-5 py-4 bg-blue-950 border-b border-blue-900">
+            <p class="text-base text-blue-300">${header}</p>
           </div>
-          <div class="divide-y divide-gray-100">
-            ${body.resultados.map((r, i) => `
-              <div class="flex items-center justify-between px-4 py-3">
-                <span class="text-sm text-gray-500">${i + 1}.</span>
-                <span class="text-sm font-medium text-gray-700">${formatDate(r.data)}</span>
-                <span class="text-sm font-semibold text-blue-600">${r.peso.toFixed(1)} kg</span>
+          <div class="divide-y divide-gray-800">
+            ${resultados.map((r, i) => `
+              <div class="flex items-center justify-between px-5 py-4">
+                <span class="text-base text-gray-500 w-6">${i + 1}.</span>
+                <span class="text-base font-medium text-gray-200 flex-1 ml-3">${formatDate(r.data)}</span>
+                <span class="text-base font-bold text-blue-400">${r.peso.toFixed(1)} kg</span>
               </div>
             `).join("")}
           </div>
@@ -535,7 +729,6 @@
 
     // ── Importar Excel ────────────────────────────────────────────────────────
     function excelSerialToISO(serial) {
-      // Excel serial: dias desde 1900-01-01 (com bug do ano bissexto 1900)
       const date = new Date((serial - 25569) * 86400 * 1000);
       const y = date.getUTCFullYear();
       const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -545,20 +738,16 @@
 
     function parseDataCell(cell) {
       if (!cell) return null;
-      // Número serial do Excel
       if (typeof cell === "number") return excelSerialToISO(cell);
       let s = String(cell).trim();
-      // DD/MM/YYYY
       if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
         const [d, m, y] = s.split("/");
         return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
       }
-      // DD-MM-YYYY
       if (/^\d{1,2}-\d{1,2}-\d{4}$/.test(s)) {
         const [d, m, y] = s.split("-");
         return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
       }
-      // YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
       return null;
     }
@@ -629,10 +818,8 @@
 
     // ── Init ──────────────────────────────────────────────────────────────────
     document.addEventListener("DOMContentLoaded", async () => {
+      applyTheme();
       await loadRegistos();
-      // Pré-preencher formulário
-      document.getElementById("form-data").value = today();
-      document.getElementById("pesq-data").value = today();
       resetForm();
     });
   </script>

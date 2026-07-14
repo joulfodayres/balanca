@@ -221,6 +221,34 @@ def export_excel():
     )
 
 
+# ─── API: Pesquisa por peso ───────────────────────────────────────────────────
+
+@app.route("/api/pesquisa-peso", methods=["GET"])
+def pesquisa_peso():
+    peso_str = request.args.get("peso")
+    if not peso_str:
+        return jsonify({"erro": "Parâmetro 'peso' obrigatório"}), 400
+    try:
+        peso = float(peso_str)
+    except ValueError:
+        return jsonify({"erro": "Peso inválido"}), 400
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT data::text, peso FROM registos
+        WHERE peso <= %s
+        ORDER BY data DESC
+        LIMIT 10
+        """,
+        (peso,),
+    )
+    rows = [dict(r) for r in cur.fetchall()]
+    cur.close()
+    conn.close()
+    return jsonify({"peso_ref": peso, "resultados": rows})
+
+
 # ─── API: Apagar todos os dados ───────────────────────────────────────────────
 
 @app.route("/api/apagar-tudo", methods=["DELETE"])
